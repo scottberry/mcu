@@ -170,14 +170,16 @@ def get_mpp_matrix_for_objects(tm, channel_names, object_type, labels, plate_nam
     """
 
     # download intensity images
-    images = [tm.download_channel_image(channel_name = channel, plate_name = plate_name, well_name = well_name,
-                                        well_pos_y = well_pos_y, well_pos_x = well_pos_x,
-                                        cycle_index = int(str(channel)[:2]),correct = True,
-                                        align = True) for channel in channel_names]
+    images = [tm.download_channel_image(
+        channel_name = channel, plate_name = plate_name, well_name = well_name,
+        well_pos_y = well_pos_y, well_pos_x = well_pos_x,
+        cycle_index = int(str(channel)[:2]),correct = True,
+        align = True) for channel in channel_names]
     # download segmentation
-    segmentation = tm.download_segmentation_image(mapobject_type_name = object_type, plate_name = plate_name,
-                                                  well_name = well_name, well_pos_y = well_pos_y,
-                                                  well_pos_x = well_pos_x, align=True)
+    segmentation = tm.download_segmentation_image(mapobject_type_name = object_type,
+        plate_name = plate_name,
+        well_name = well_name, well_pos_y = well_pos_y,
+        well_pos_x = well_pos_x, align=True)
 
     # use object areas to preallocate the results matrices
     labels.sort()
@@ -189,7 +191,7 @@ def get_mpp_matrix_for_objects(tm, channel_names, object_type, labels, plate_nam
 
     for label in labels:
         # get pixel profiles (save into pre-allocated array)
-        pp = [get_pp_vector_for_object(image, label_image = segmentation, label = label) for image in images]
+        pp = [get_intensity_vector_for_object(image, label_image = segmentation, label = label) for image in images]
         all_pixel_profiles[:,label_vector==label] = np.asarray(pp)
 
         # get coordinates (save in preallocated vector)

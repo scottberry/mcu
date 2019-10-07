@@ -1,24 +1,28 @@
 import os
+import sys
 import logging
+import argparse
 import numpy as np
 import pandas as pd
 from tmclient import TmClient
 from mcu import pixel_profiles as pp
 
+logger = logging.getLogger()
+
 def build_mpp(tm_credentials, experiment_name, metadata,
-    channel_names, object_type, mean_object_area):
+    channel_names, object_type, mean_object_size):
 
     logger.debug('Establish connection to TM host')
     tm = TmClient(
-        host=tm_credentials.host,
-        port=tm_credentials.port,
+        host=tm_credentials.host[0],
+        port=tm_credentials.port[0],
         experiment_name=experiment_name,
-        username=tm_credentials.username,
-        password=tm_credentials.password
+        username=tm_credentials.username[0],
+        password=tm_credentials.password[0]
     )
 
     size_factor = 1.5
-    n_pixels = floor(size_factor * mean_object_area)
+    n_pixels = int(size_factor * mean_object_size * metadata.shape[0])
     n_channels = len(channel_names)
 
     logger.debug('Initialise arrays to store MPP, etc.')
@@ -27,8 +31,8 @@ def build_mpp(tm_credentials, experiment_name, metadata,
     y_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
     x_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
 
-    logger.info('MPP has shape {0}, and size in memory = {1:.3f} GB').format(
-        mpp_all.shape, mpp_all.nbytes / 1e9)
+    logger.info('MPP has shape {0}, and size in memory = {1:.3f} GB'.format(
+        mpp_all.shape, mpp_all.nbytes / 1e9))
 
     # loop over the sites to generate the mpp
     metadata = metadata.groupby(['plate_name','well_name','well_pos_y','well_pos_x'])
@@ -39,11 +43,12 @@ def build_mpp(tm_credentials, experiment_name, metadata,
             logger.error('Insufficient space in mpp array to store new pixels')
             raise ValueError
 
-        logger.info('Extracting MPP for {} : {}, {}. Current overall pixel = {} (of total {})'.format(
+        logger.info('Extracting MPP for {} objects in {} : {}, {}. Current overall pixel = {} (of total {})'.format(
+            group.shape[0],
             group.iloc[0]['well_name'],
             int(group.iloc[0]['well_pos_y']),
             int(group.iloc[0]['well_pos_x']),
-            r, mpp.shape[0]))
+            r, mpp_all.shape[0]))
 
         mpp, label_vector, y_coords, x_coords = pp.get_mpp_matrix_for_objects(
             tm=tm, channel_names=channel_names,
@@ -51,8 +56,8 @@ def build_mpp(tm_credentials, experiment_name, metadata,
             labels=group.label.tolist(),
             plate_name=group.iloc[0]['plate_name'],
             well_name=group.iloc[0]['well_name'],
-            int(group.iloc[0]['well_pos_y']),
-            int(group.iloc[0]['well_pos_x'])
+            well_pos_y=int(group.iloc[0]['well_pos_y']),
+            well_pos_x=int(group.iloc[0]['well_pos_x'])
         )
 
         p = len(label_vector)
@@ -67,7 +72,8 @@ def build_mpp(tm_credentials, experiment_name, metadata,
         r += p
 
     # remove extra allocated space
-    logger.info('Extracted {} pixels (of total {} allocated). Trimming output'.format(p,mpp.shape[0]))
+    logger.info('Extracted {} pixels (of total {} allocated)'.format(r,mpp_all.shape[0]))
+    logger.info('Trimming output to {} pixels'.format(r))
     mpp_all.resize((r,n_channels))
     label_vector_all.resize((r,))
     y_coords_all.resize((r,))
@@ -90,13 +96,15 @@ def main(args):
         metadata = metadata,
         channel_names = args.channel_names,
         object_type = args.object_type,
-        mean_object_area = args.mean_object_area):
+        mean_object_size = args.mean_object_size)
 
-    os.mkdir(args.output_directory)
-    np.save(file = os.path.join(args.output_directory,"mpp.npy"), mpp)
-    np.save(file = os.path.join(args.output_directory,"labels.npy"), labels)
-    np.save(file = os.path.join(args.output_directory,"y.npy"), y)
-    np.save(file = os.path.join(args.output_directory,"x.npy"), x)
+    logger.debug('Creating output directory {}'.format(args.output_directory))
+    os.makedirs(args.output_directory)
+    np.save(file = os.path.join(args.output_directory,"mpp.npy"), arr=mpp)
+    np.save(file = os.path.join(args.output_directory,"labels.npy"), arr=labels)
+    np.save(file = os.path.join(args.output_directory,"y.npy"), arr=y)
+    np.save(file = os.path.join(args.output_directory,"x.npy"), arr=x)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -116,9 +124,9 @@ def parse_arguments():
                         help='segmented object to derive mpp for')
     parser.add_argument('-e','--experiment_name', default="Nuclei", type=str,
                         help='name of the experiment on TissueMAPS')
-    parser.add_argument('-c','--channel_names', default=['00_DAPI'], type=list,
+    parser.add_argument('-c','--channel_names', default=['00_DAPI'], nargs='*',
                         help='list of channel names to be included in the MPP')
-    parser.add_argument('-s','--mean_object_size', default=5000, type=int,
+    parser.add_argument('-s','--mean_object_size', default=50000, type=int,
                         help='average size of object (used to estimate memory'
                              'storage requirements)')
     return(parser.parse_args())
@@ -128,11 +136,10 @@ def setup_logger(args):
     global logger
 
     handler = logging.StreamHandler(sys.stdout)
-    logger.addHandler(handler)
-
     formatter = logging.Formatter(
-        '%(asctime)s [%(thread)d] %(funcName)s %(levelname)s: %(message)s')
-    logger.setFormatter(formatter)
+        '%(asctime)s %(funcName)s %(levelname)s: %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     logger.setLevel(logging.INFO)
     if args.verbose > 0:
