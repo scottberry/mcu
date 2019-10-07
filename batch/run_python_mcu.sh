@@ -1,17 +1,17 @@
 #! /bin/bash
 #
-### use 8 CPUs
-#SBATCH -c 8
+### use 16 CPUs
+#SBATCH -c 16
 #
-### run for (max) 8 hours
+### run on hydra
+#SBATCH --partition hydra
+#
 #SBATCH --time=8:00:00
+#SBATCH --mem=3500m
 #
-### use (max) 3500 MB of memory per CPU
-#SBATCH --mem-per-cpu=3500m
-#
-### write both output and errors to file `run_python.NNN.log`
-#SBATCH -o run_python.%j.log
-#SBATCH -e run_python.%j.log
+### write both output and errors to file `run_mcu.NNN.log`
+#SBATCH -o run_mcu.%j.log
+#SBATCH -e run_mcu.%j.log
 #
 
 # activate virtualenv;
