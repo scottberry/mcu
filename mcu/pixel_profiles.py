@@ -154,11 +154,19 @@ def get_mpp_matrix_for_objects(tm, channel_names, object_type, labels, plate_nam
     Returns
     -------
     mpp : ndarray
-        n x `label_image`
-        for object with label `label` in `label_image`
-    x : ndarray
-        1D vector containing x coordinates from `label_image`
-        for object with label `label` in `label_image`
+        multiplexed pixel profiles for `length(labels)` objects, across
+        all channels in `channel_names`. Array shape is pixels x channels
+    label_vector : ndarray
+        1D vector with length equal to the total number of pixels in all
+        objects, containing the labels corresponding to the rows of `mpp`
+    y_coords : ndarray
+        1D vector with length equal to the total number of pixels in all
+        objects, containing the y-coordinates corresponding to the rows
+        of `mpp`
+    x_coords : ndarray
+        1D vector with length equal to the total number of pixels in all
+        objects, containing the x-coordinates corresponding to the rows
+        of `mpp`
     """
 
     # download intensity images
