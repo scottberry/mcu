@@ -1,1 +1,1 @@
-sbatch --partition=generic -c 1 --mem=3500m --time=0:30:00 ~/mcu/batch/run_python_mcu.sh ~/mcu/mcu/mpp.py -v ~/mcu/example_metadata_file.csv ~/credentials_tm_nannygai.csv -o /scratch/scberr/mcu/test -t "Nuclei" -e "201908-NascentRNA-4i_cyc0-22" -c 00_DAPI 07_H2B -s 25000
+sbatch --partition=hydra -c 1 --mem=3500m --time=0:30:00 ~/mcu/batch/run_python_mcu.sh ~/mcu/mcu/mpp.py -v ~/mcu/test/example_metadata_file.csv ~/credentials_tm_nannygai.csv -o /scratch/scberr/mcu/test -t "Nuclei" -e "201908-NascentRNA-4i_cyc0-22" -c 00_DAPI 07_H2B -s 25000
