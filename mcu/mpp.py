@@ -27,6 +27,7 @@ def build_mpp(tm_credentials, experiment_name, metadata,
 
     logger.debug('Initialise arrays to store MPP, etc.')
     mpp_all = np.zeros((n_pixels,n_channels), dtype=np.uint16, order='C')
+    mapobject_id_all = np.zeros((n_pixels,), dtype=np.uint32, order='C')
     label_vector_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
     y_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
     x_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
@@ -63,8 +64,12 @@ def build_mpp(tm_credentials, experiment_name, metadata,
         p = len(label_vector)
         logger.debug('Adding {} new pixels to MPP'.format(p))
 
+        # get mapobject_ids for each label in this site
+        mapobject_id_dict = df.set_index('label')['mapobject_id'].to_dict()
+
         mpp_all[r:r + p,:] = mpp
         label_vector_all[r:r + p] = label_vector
+        mapobject_id_all[r:r + p] = np.vectorize(mapobject_id_dict.get)(label_vector)
         y_coords_all[r:r + p] = y_coords
         x_coords_all[r:r + p] = x_coords
 
@@ -79,7 +84,7 @@ def build_mpp(tm_credentials, experiment_name, metadata,
     y_coords_all.resize((r,))
     x_coords_all.resize((r,))
 
-    return(mpp_all, label_vector_all, y_coords_all, x_coords_all)
+    return(mpp_all, label_vector_all, mapobject_id_all, y_coords_all, x_coords_all)
 
 
 def main(args):
@@ -90,7 +95,7 @@ def main(args):
     logger.debug('Read metadata')
     metadata = pd.read_csv(args.metadata_file)
 
-    mpp, labels, y, x = build_mpp(
+    mpp, labels, mapobject_ids, y, x = build_mpp(
         tm_credentials = tm_credentials,
         experiment_name = args.experiment_name,
         metadata = metadata,
@@ -102,6 +107,7 @@ def main(args):
     os.makedirs(args.output_directory)
     np.save(file = os.path.join(args.output_directory,"mpp.npy"), arr=mpp)
     np.save(file = os.path.join(args.output_directory,"labels.npy"), arr=labels)
+    np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=labels)
     np.save(file = os.path.join(args.output_directory,"y.npy"), arr=y)
     np.save(file = os.path.join(args.output_directory,"x.npy"), arr=x)
 
