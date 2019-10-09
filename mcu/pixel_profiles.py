@@ -1,6 +1,9 @@
+import logging
 import numpy as np
 import mahotas as mh
 from tmclient import TmClient
+
+logger = logging.getLogger()
 
 def get_intensity_image_of_object(intensity_image,label_image,label):
     """Get a cropped numpy array of `intensity_image` using a
@@ -19,9 +22,12 @@ def get_intensity_image_of_object(intensity_image,label_image,label):
 
     Returns
     -------
-    ndarray
+    intensity_image_cropped : ndarray
         `intensity_image` cropped to contain only pixels corresponding
-        to the segmentation provided.
+        to label `label` in the label_image provided.
+    mask : ndarray
+        `mask` cropped to the same size, which is true for pixels
+        belonging to object with label `label`.
     """
     bboxes = mh.labeled.bbox(label_image)
     segmentation_image_cropped = label_image[
@@ -30,10 +36,10 @@ def get_intensity_image_of_object(intensity_image,label_image,label):
     intensity_image_cropped = intensity_image[
         bboxes[label,0]:bboxes[label,1],
         bboxes[label,2]:bboxes[label,3]]
+    assert segmentation_image_cropped.shape == intensity_image_cropped.shape
 
-    intensity_image_cropped[segmentation_image_cropped!=label]=0
-
-    return(intensity_image_cropped)
+    mask = (segmentation_image_cropped == label)
+    return(intensity_image_cropped, mask)
 
 def get_coordinate_images_of_object(label_image,label):
     """Get a numpy array containing the coordinates of the label image
@@ -57,6 +63,9 @@ def get_coordinate_images_of_object(label_image,label):
         contains zero where `label_image` is not equal to `label` and
         x coordinate (matrix column) of full `label_image` where `label_image`
         is equal to label.
+    mask : ndarray
+        `mask` cropped to the same size, which is true for pixels
+        belonging to object with label `label`.
     """
     bboxes = mh.labeled.bbox(label_image)
     segmentation_image_cropped = label_image[
@@ -69,10 +78,10 @@ def get_coordinate_images_of_object(label_image,label):
     coordinate_image_y = np.transpose(np.tile(np.arange(bboxes[label,0],bboxes[label,1]),(x_len,1)))
     coordinate_image_x = np.tile(np.arange(bboxes[label,2],bboxes[label,3]),(y_len,1))
 
-    coordinate_image_y[segmentation_image_cropped!=label]=0
-    coordinate_image_x[segmentation_image_cropped!=label]=0
+    assert coordinate_image_y.shape == coordinate_image_x.shape
 
-    return(coordinate_image_y, coordinate_image_x)
+    mask = (segmentation_image_cropped == label)
+    return(coordinate_image_y, coordinate_image_x, mask)
 
 def get_intensity_vector_for_object(intensity_image,label_image,label):
     """Get a single-clannel intensity vector of `intensity_image` using a
@@ -95,10 +104,11 @@ def get_intensity_vector_for_object(intensity_image,label_image,label):
         1D vector containing intensity values from `intensity_image`
         for object with label `label` in `label_image`
     """
-    v = get_intensity_image_of_object(intensity_image,label_image,label)
-    v = v.flatten()
-    v = v[v!=0]
-    return(v)
+    v, mask = get_intensity_image_of_object(intensity_image,label_image,label)
+    assert v.shape == mask.shape
+    v = v.reshape(v.shape[0]*v.shape[1])
+    mask = mask.reshape(mask.shape[0]*mask.shape[1])
+    return(v[mask])
 
 def get_coord_vectors_for_object(label_image,label):
     """Get lists of y and x coordinates corresponding to the pixels
@@ -121,12 +131,13 @@ def get_coord_vectors_for_object(label_image,label):
         1D vector containing x coordinates from `label_image`
         for object with label `label` in `label_image`
     """
-    y,x = get_coordinate_images_of_object(label_image,label)
-    y = y.flatten()
-    x = x.flatten()
-    y = y[y!=0]
-    x = x[x!=0]
-    return(y,x)
+    y, x, mask = get_coordinate_images_of_object(label_image,label)
+    assert y.shape == mask.shape
+    assert x.shape == mask.shape
+    y = y.reshape(y.shape[0]*y.shape[1])
+    x = x.reshape(x.shape[0]*x.shape[1])
+    mask = mask.reshape(mask.shape[0]*mask.shape[1])
+    return(y[mask],x[mask])
 
 def get_mpp_matrix_for_objects(tm, channel_names, object_type, labels, plate_name, well_name, well_pos_y, well_pos_x):
     """Generate multiplexed pixel profiles
@@ -170,13 +181,16 @@ def get_mpp_matrix_for_objects(tm, channel_names, object_type, labels, plate_nam
     """
 
     # download intensity images
+    logger.debug('requesting download of channels {} at {}, {}, y = {}, x = {}'.format(', '.join(channel_names),plate_name,well_name,well_pos_y,well_pos_x))
     images = [tm.download_channel_image(
         channel_name = channel, plate_name = plate_name, well_name = well_name,
         well_pos_y = well_pos_y, well_pos_x = well_pos_x,
         cycle_index = int(str(channel)[:2]),correct = True,
         align = True) for channel in channel_names]
     # download segmentation
-    segmentation = tm.download_segmentation_image(mapobject_type_name = object_type,
+    logger.debug('requesting download of segmentation for object {} at {}, {}, y = {}, x = {}'.format(object_type,plate_name,well_name,well_pos_y,well_pos_x))
+    segmentation = tm.download_segmentation_image(
+        mapobject_type_name = object_type,
         plate_name = plate_name,
         well_name = well_name, well_pos_y = well_pos_y,
         well_pos_x = well_pos_x, align=True)
@@ -184,14 +198,20 @@ def get_mpp_matrix_for_objects(tm, channel_names, object_type, labels, plate_nam
     # use object areas to preallocate the results matrices
     labels.sort()
     sizes = mh.labeled.labeled_size(segmentation)
+
     label_vector = np.concatenate([np.repeat(label,sizes[label]) for label in labels]).astype(np.uint16)
     y_coords = np.zeros_like(label_vector)
     x_coords = np.zeros_like(label_vector)
     all_pixel_profiles = np.zeros((len(channel_names),len(label_vector)), dtype=np.uint16)
 
+    logger.debug('all_pixel_profiles shape: {}'.format(all_pixel_profiles.shape))
+
     for label in labels:
         # get pixel profiles (save into pre-allocated array)
+        logger.debug('current label: {}'.format(label))
         pp = [get_intensity_vector_for_object(image, label_image = segmentation, label = label) for image in images]
+        logger.debug('pp shape: {}'.format(np.asarray(pp).shape))
+        logger.debug('dest array shape: {}'.format(all_pixel_profiles[:,label_vector==label].shape))
         all_pixel_profiles[:,label_vector==label] = np.asarray(pp)
 
         # get coordinates (save in preallocated vector)
