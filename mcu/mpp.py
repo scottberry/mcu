@@ -65,7 +65,7 @@ def build_mpp(tm_credentials, experiment_name, metadata,
         logger.debug('Adding {} new pixels to MPP'.format(p))
 
         # get mapobject_ids for each label in this site
-        mapobject_id_dict = df.set_index('label')['mapobject_id'].to_dict()
+        mapobject_id_dict = metadata.set_index('label')['mapobject_id'].to_dict()
 
         mpp_all[r:r + p,:] = mpp
         label_vector_all[r:r + p] = label_vector
@@ -107,7 +107,7 @@ def main(args):
     os.makedirs(args.output_directory)
     np.save(file = os.path.join(args.output_directory,"mpp.npy"), arr=mpp)
     np.save(file = os.path.join(args.output_directory,"labels.npy"), arr=labels)
-    np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=labels)
+    np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=mapobject_ids)
     np.save(file = os.path.join(args.output_directory,"y.npy"), arr=y)
     np.save(file = os.path.join(args.output_directory,"x.npy"), arr=x)
 
