@@ -26,7 +26,9 @@ def build_mpp(tm_credentials, experiment_name, metadata,
     n_channels = len(channel_names)
 
     logger.debug('Initialise arrays to store MPP, etc.')
-    mpp_all = np.zeros((n_pixels,n_channels), dtype=np.uint16, order='C')
+
+    # use an int32 array for mpp, as background subtraction will be performed later
+    mpp_all = np.zeros((n_pixels,n_channels), dtype=np.int32, order='C')
     mapobject_id_all = np.zeros((n_pixels,), dtype=np.uint32, order='C')
     label_vector_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
     y_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
@@ -65,7 +67,7 @@ def build_mpp(tm_credentials, experiment_name, metadata,
         logger.debug('Adding {} new pixels to MPP'.format(p))
 
         # get mapobject_ids for each label in this site
-        mapobject_id_dict = metadata.set_index('label')['mapobject_id'].to_dict()
+        mapobject_id_dict = group[['label', 'mapobject_id']].set_index('label')['mapobject_id'].to_dict()
 
         mpp_all[r:r + p,:] = mpp
         label_vector_all[r:r + p] = label_vector
@@ -81,6 +83,7 @@ def build_mpp(tm_credentials, experiment_name, metadata,
     logger.info('Trimming output to {} pixels'.format(r))
     mpp_all.resize((r,n_channels))
     label_vector_all.resize((r,))
+    mapobject_id_all.resize((r,))
     y_coords_all.resize((r,))
     x_coords_all.resize((r,))
 
@@ -95,6 +98,14 @@ def main(args):
     logger.debug('Read metadata')
     metadata = pd.read_csv(args.metadata_file)
 
+    logger.debug('Creating output directory {}'.format(args.output_directory))
+    os.makedirs(args.output_directory)
+
+    logger.debug('Saving channel names to {}'.format(args.output_directory))
+    pd.Series(args.channel_names).to_csv(
+        os.path.join(args.output_directory,"channels.csv"),
+        header=False)
+
     mpp, labels, mapobject_ids, y, x = build_mpp(
         tm_credentials = tm_credentials,
         experiment_name = args.experiment_name,
@@ -103,8 +114,6 @@ def main(args):
         object_type = args.object_type,
         mean_object_size = args.mean_object_size)
 
-    logger.debug('Creating output directory {}'.format(args.output_directory))
-    os.makedirs(args.output_directory)
     np.save(file = os.path.join(args.output_directory,"mpp.npy"), arr=mpp)
     np.save(file = os.path.join(args.output_directory,"labels.npy"), arr=labels)
     np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=mapobject_ids)
