@@ -117,7 +117,7 @@ def main(args):
         background_values_file=args.background_values_file
     )
 
-    rescale_intensities_per_channel(mpp=mpp, percentile=98.0)
+    rescale_intensities_per_channel(mpp=mpp, percentile=99.9)
 
     logger.debug('Confirm rescaling: mpp row 1 = {}'.format(
         ', '.join([str(el) for el in mpp[0,:]])))
@@ -127,20 +127,20 @@ def main(args):
 
     logger.info('Searching for {} clusters among {} pixel profiles ({} channels)'.format(
         args.n_clusters,mpp.shape[0],mpp.shape[1]))
-#    kmeans = cluster.KMeans(
-#        n_clusters=args.n_clusters,
-#        init='k-means++',
-#        n_init=args.n_init,
-#        random_state=args.seed,
-#        precompute_distances=True,
-#        n_jobs=args.n_cpus,
-#        algorithm='elkan',
-#        verbose=1).fit(mpp)
+    kmeans = cluster.KMeans(
+        n_clusters=args.n_clusters,
+        init='k-means++',
+        n_init=args.n_init,
+        random_state=args.seed,
+        precompute_distances=True,
+        n_jobs=args.n_cpus,
+        algorithm='elkan',
+        verbose=1).fit(mpp)
 
     channels.to_csv(os.path.join(args.output_directory,"channels.csv"),header=False)
-#    np.save(file = os.path.join(args.output_directory,"cluster_ids.npy"), arr=kmeans.labels_)
-#    np.save(file = os.path.join(args.output_directory,"cluster_centres.npy"), arr=kmeans.cluster_centers_)
-#    np.save(file = os.path.join(args.output_directory,"inertia.npy"), arr=kmeans.inertia_)
+    np.save(file = os.path.join(args.output_directory,"cluster_ids.npy"), arr=kmeans.labels_)
+    np.save(file = os.path.join(args.output_directory,"cluster_centres.npy"), arr=kmeans.cluster_centers_)
+    np.save(file = os.path.join(args.output_directory,"inertia.npy"), arr=kmeans.inertia_)
     np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=mapobject_ids)
     np.save(file = os.path.join(args.output_directory,"y.npy"), arr=y_coords)
     np.save(file = os.path.join(args.output_directory,"x.npy"), arr=x_coords)

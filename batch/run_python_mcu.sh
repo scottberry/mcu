@@ -4,7 +4,7 @@
 #SBATCH -c 16
 #
 ### run on hydra
-###SBATCH --partition=hydra
+#SBATCH --partition=hydra
 #
 #SBATCH --time=8:00:00
 #SBATCH --mem=3500m
@@ -15,8 +15,8 @@
 #
 
 # activate virtualenv;
-#venv="$HOME/.virtualenv/mcu/"
-venv="$HOME/virtualenvs/mcu/"
+venv="$HOME/.virtualenv/mcu/"
+#venv="$HOME/virtualenvs/mcu/"
 if [ -r "$venv/bin/activate" ]; then
   . "$venv/bin/activate"
 else
