@@ -5,7 +5,6 @@ import itertools
 import argparse
 import numpy as np
 import pandas as pd
-from sklearn import cluster
 from tmclient import TmClient
 
 logger = logging.getLogger()
@@ -125,26 +124,60 @@ def main(args):
     if args.exclude_channels !=[]:
         mpp, channels = exclude_channels(mpp,channels,args.exclude_channels)
 
-    logger.info('Searching for {} clusters among {} pixel profiles ({} channels)'.format(
-        args.n_clusters,mpp.shape[0],mpp.shape[1]))
-    kmeans = cluster.KMeans(
-        n_clusters=args.n_clusters,
-        init='k-means++',
-        n_init=args.n_init,
-        random_state=args.seed,
-        precompute_distances=True,
-        n_jobs=args.n_cpus,
-        algorithm='elkan',
-        verbose=1).fit(mpp)
-
-    channels.to_csv(os.path.join(args.output_directory,"channels.csv"),header=False)
-    np.save(file = os.path.join(args.output_directory,"cluster_ids.npy"), arr=kmeans.labels_)
-    np.save(file = os.path.join(args.output_directory,"cluster_centres.npy"), arr=kmeans.cluster_centers_)
-    np.save(file = os.path.join(args.output_directory,"inertia.npy"), arr=kmeans.inertia_)
     np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=mapobject_ids)
     np.save(file = os.path.join(args.output_directory,"y.npy"), arr=y_coords)
     np.save(file = os.path.join(args.output_directory,"x.npy"), arr=x_coords)
+    channels.to_csv(os.path.join(args.output_directory,"channels.csv"),header=False)
 
+    if args.algorithm=='kmeans':
+        from sklearn import cluster
+
+        logger.info('Using k-means to search for {} clusters among {} pixel profiles ({} channels)'.format(
+            args.n_clusters,mpp.shape[0],mpp.shape[1]))
+        kmeans = cluster.KMeans(
+            n_clusters=args.n_clusters,
+            init='k-means++',
+            n_init=args.n_init,
+            random_state=args.seed,
+            precompute_distances=True,
+            n_jobs=args.n_cpus,
+            algorithm='elkan',
+            verbose=1).fit(mpp)
+
+        np.save(file = os.path.join(args.output_directory,"cluster_ids.npy"), arr=kmeans.labels_)
+        np.save(file = os.path.join(args.output_directory,"cluster_centres.npy"), arr=kmeans.cluster_centers_)
+        np.save(file = os.path.join(args.output_directory,"inertia.npy"), arr=kmeans.inertia_)
+
+    elif args.algorithm=='som':
+        import pickle
+        from minisom import MiniSom
+
+        n = args.n_clusters
+        logger.info('Using SOM to search for {} clusters among {} pixel profiles ({} channels)'.format(
+            n*n,mpp.shape[0],mpp.shape[1]))
+
+        som = MiniSom(n, n, mpp.shape[1], sigma=3.,
+                      learning_rate=0.1,
+                      neighborhood_function='gaussian',
+                      random_seed=args.seed)
+        som.random_weights_init(mpp)
+        som.train_random(mpp, mpp.shape[0], verbose=True)
+
+        logger.debug('Writing results of SOM')
+        # SOM returns 2D coordinates, convert to linear indices
+        winner_node_2D_coordinates = np.array([som.winner(mpp[i,:]) for i in range(mpp.shape[0])], order = 'C')
+        winner_node_index = [np.ravel_multi_index(c, dims=(n,n), order='C') for c in winner_node_2D_coordinates]
+        np.save(file = os.path.join(args.output_directory,"cluster_ids.npy"),
+            arr=np.array(winner_node_index, order = 'C'))
+
+        cluster_centres = np.ascontiguousarray(som.get_weights())
+        np.save(file = os.path.join(args.output_directory,"cluster_centres.npy"),
+            arr=np.reshape(cluster_centres,(n*n,mpp.shape[1]), order='C'))
+
+    else:
+        logger.warning('No clustering algorithm selected')
+
+    return
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -167,8 +200,10 @@ def parse_arguments():
                         default=[],
                         nargs='*',
                         help='list of channel names to exclude')
+    parser.add_argument('-a,','--algorithm', default='som', type=str,
+                        choices=['kmeans','som','hdbscan'])
     parser.add_argument('-k','--n_clusters', default=1000, type=int,
-                        help='number of clusters to generate')
+                        help='number of clusters to generate (squared for som)')
     parser.add_argument('-c','--n_cpus', default=1, type=int,
                         help='number of cpus available for clustering')
     parser.add_argument('-n','--n_init', default=10, type=int,
