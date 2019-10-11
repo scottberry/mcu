@@ -6,7 +6,7 @@
 ### run on hydra
 #SBATCH --partition=hydra
 #
-#SBATCH --time=8:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mem=3500m
 #
 ### write both output and errors to file `run_mcu.NNN.log`
