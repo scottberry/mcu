@@ -10,7 +10,7 @@ from mcu import pixel_profiles as pp
 logger = logging.getLogger()
 
 def get_borders(tm_credentials, experiment_name, metadata,
-    channel_names, object_type):
+    object_type, mean_object_size):
 
     logger.debug('Establish connection to TM host')
     tm = TmClient(
@@ -23,31 +23,28 @@ def get_borders(tm_credentials, experiment_name, metadata,
 
     size_factor = 0.5
     n_pixels = int(size_factor * mean_object_size * metadata.shape[0])
-    n_channels = len(channel_names)
 
     logger.debug('Initialise arrays')
-
-    # use an int32 array for mpp, as background subtraction will be performed later
     border_mapobject_id_all = np.zeros((n_pixels,), dtype=np.uint32, order='C')
     border_label_vector_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
     border_y_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
     border_x_coords_all = np.zeros((n_pixels,), dtype=np.uint16, order='C')
 
-    # loop over the sites to generate the mpp
+    # loop over the sites
     metadata = metadata.groupby(['plate_name','well_name','well_pos_y','well_pos_x'])
     r = 0
     for name, group in metadata:
 
         if (r > n_pixels):
-            logger.error('Insufficient space in mpp array to store new pixels')
+            logger.error('Insufficient space in arrays to store new pixels')
             raise ValueError
 
-        logger.info('Extracting borders for {} objects in {} : {}, {}. Current overall pixel = {} (of total {})'.format(
+        logger.info('Extracting borders for {} objects in {} : {}, {}. Current overall pixel = {}'.format(
             group.shape[0],
             group.iloc[0]['well_name'],
             int(group.iloc[0]['well_pos_y']),
             int(group.iloc[0]['well_pos_x']),
-            r, mpp_all.shape[0]))
+            r))
 
         label_vector, y_coords, x_coords = pp.get_borders_for_objects(
             tm=tm,
@@ -74,11 +71,12 @@ def get_borders(tm_credentials, experiment_name, metadata,
         r += p
 
     # remove extra allocated space
-    logger.info('Extracted {} border pixels (of total {} allocated)'.format(r,mpp_all.shape[0]))
+    logger.info('Extracted {} border pixels'.format(r))
     border_label_vector_all = border_label_vector_all[border_label_vector_all != 0]
     border_mapobject_id_all = border_mapobject_id_all[border_mapobject_id_all != 0]
     border_y_coords_all = border_y_coords_all[border_y_coords_all != 0]
     border_x_coords_all = border_x_coords_all[border_x_coords_all != 0]
+    logger.info('Size is {} after removing zeros '.format(border_label_vector_all.shape[0]))
 
     return(border_label_vector_all, border_mapobject_id_all, border_y_coords_all, border_x_coords_all)
 
@@ -110,9 +108,9 @@ def main(args):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        prog='mpp',
-        description=('Generate a multiplexed pixel profile and for a set'
-                     'of objects defined in the metadata file.'
+        prog='borders',
+        description=('Get border pixels corresponding to objects for which'
+                     'MPP was built.'
                      )
     )
     parser.add_argument('metadata_file', help='path to metadata file')

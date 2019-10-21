@@ -364,11 +364,9 @@ def get_borders_for_objects(tm, object_type, labels, plate_name, well_name, well
     # use object areas to preallocate the results matrices
     labels.sort()
 
-    border_label_vector = []
-    border_y_coords = []
-    border_x_coords = []
-
-    logger.debug('all_pixel_profiles shape: {}'.format(all_pixel_profiles.shape))
+    border_label_vector = np.array([],dtype=np.uint16)
+    border_y_coords = np.array([],dtype=np.uint16)
+    border_x_coords = np.array([],dtype=np.uint16)
 
     for label in labels:
         logger.debug('current label: {}'.format(label))
@@ -376,8 +374,8 @@ def get_borders_for_objects(tm, object_type, labels, plate_name, well_name, well
         # get border coordinates (append to list)
         b_y_coords, b_x_coords, b_label = get_border_coord_vectors_for_object(
             label_image = segmentation, label = label, thickness = 3)
-        border_label_vector.append(b_label)
-        border_y_coords.append(b_y_coords)
-        border_x_coords.append(b_x_coords)
+        border_label_vector = np.append(border_label_vector,b_label)
+        border_y_coords = np.append(border_y_coords,b_y_coords)
+        border_x_coords = np.append(border_x_coords,b_x_coords)
 
     return np.array(border_label_vector), np.array(border_y_coords), np.array(border_x_coords)
