@@ -98,8 +98,9 @@ def main(args):
     logger.debug('Read metadata')
     metadata = pd.read_csv(args.metadata_file)
 
-    logger.debug('Creating output directory {}'.format(args.output_directory))
-    os.makedirs(args.output_directory)
+    if not os.path.isdir(args.output_directory):
+        logger.debug('Creating output directory {}'.format(args.output_directory))
+        os.makedirs(args.output_directory)
 
     logger.debug('Saving channel names to {}'.format(args.output_directory))
     pd.Series(args.channel_names).to_csv(
