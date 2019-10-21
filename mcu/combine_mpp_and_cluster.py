@@ -124,6 +124,7 @@ def main(args):
     if args.exclude_channels !=[]:
         mpp, channels = exclude_channels(mpp,channels,args.exclude_channels)
 
+    np.save(file = os.path.join(args.output_directory,"mpp_rescaled.npy"), arr=mpp)
     np.save(file = os.path.join(args.output_directory,"mapobject_ids.npy"), arr=mapobject_ids)
     np.save(file = os.path.join(args.output_directory,"y.npy"), arr=y_coords)
     np.save(file = os.path.join(args.output_directory,"x.npy"), arr=x_coords)
